@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Producer–Consumer Synchronization — Presentation Mode</title>
+  <link rel="stylesheet" href="styles.css" />
+<style>
+/* ===== Implementation Map (visual) ===== */
+.impl-map-wrap{
+  display:grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 18px;
+  margin-top: 14px;
+}
+@media (max-width: 980px){
+  .impl-map-wrap{ grid-template-columns: 1fr; }
+}
+
+.impl-toolbar{
+  display:flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 6px 0 14px 0;
+  position: relative;
+  z-index: 2;
+}
+.impl-toolbtn{
+  appearance:none;
+  border:1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.03);
+  color:#e4e4e7;
+  padding: 10px 12px;
+  border-radius: 12px;
+  cursor:pointer;
+  font-weight: 700;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.impl-toolbtn:hover{
+  transform: translateY(-1px);
+  border-color: rgba(96,165,250,0.45);
+  background: rgba(96,165,250,0.08);
+}
+.impl-toolbtn.active{
+  border-color: rgba(167,139,250,0.60);
+  background: rgba(167,139,250,0.10);
+}
+
+.impl-map{
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 18px;
+  padding: 18px;
+  position: relative;
+  overflow: hidden;
+  min-height: 430px;
+}
+
+.impl-map::before{
+  content:"";
+  position:absolute;
+  inset:-2px;
+  background:
+    radial-gradient(680px 340px at 18% 12%, rgba(96,165,250,0.16), transparent 60%),
+    radial-gradient(680px 340px at 82% 78%, rgba(167,139,250,0.14), transparent 60%),
+    radial-gradient(520px 260px at 60% 30%, rgba(236,72,153,0.08), transparent 60%);
+  pointer-events:none;
+  filter: saturate(1.05);
+}
+
+.impl-lane{
+  position: relative;
+  display:flex;
+  flex-direction:column;
+  gap: 14px;
+  z-index: 1;
+}
+
+.impl-row{
+  display:flex;
+  align-items:center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.impl-node{
+  flex: 0 0 auto;
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: linear-gradient(135deg, rgba(96,165,250,0.10), rgba(167,139,250,0.06));
+  cursor:pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  user-select:none;
+}
+
+.impl-node[data-kind="core"]{ background: linear-gradient(135deg, rgba(96,165,250,0.14), rgba(96,165,250,0.06)); }
+.impl-node[data-kind="sync"]{ background: linear-gradient(135deg, rgba(167,139,250,0.14), rgba(167,139,250,0.06)); }
+.impl-node[data-kind="demo"]{ background: linear-gradient(135deg, rgba(236,72,153,0.12), rgba(236,72,153,0.05)); }
+
+.impl-node:hover{
+  transform: translateY(-2px);
+  border-color: rgba(96,165,250,0.45);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.40);
+}
+
+.impl-node.active{
+  border-color: rgba(96,165,250,0.70);
+  box-shadow: 0 14px 36px rgba(96,165,250,0.16);
+}
+
+.impl-icon{
+  width: 36px;
+  height: 36px;
+  border-radius: 14px;
+  display:grid;
+  place-items:center;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  font-weight: 900;
+}
+
+.impl-meta{
+  display:flex;
+  flex-direction:column;
+  line-height: 1.2;
+}
+
+.impl-file{
+  font-weight: 900;
+  color: #f0f0f3;
+  letter-spacing: -0.2px;
+}
+
+.impl-tag{
+  font-size: 0.92em;
+  color: #a1a1aa;
+}
+
+.impl-arrow{
+  color: rgba(96,165,250,0.95);
+  font-size: 20px;
+  opacity: 0.9;
+  font-weight: 900;
+}
+
+.impl-detail{
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 18px;
+  padding: 18px;
+}
+
+.impl-detail-title{
+  font-size: 1.25em;
+  font-weight: 900;
+  color: #f0f0f3;
+  margin-bottom: 6px;
+}
+
+.impl-detail-sub{
+  color:#a1a1aa;
+  margin-bottom: 14px;
+}
+
+.impl-detail-grid{
+  display:grid;
+  gap: 10px;
+}
+
+.impl-pill{
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.02);
+  padding: 12px 14px;
+}
+
+.impl-pill h4{
+  margin: 0 0 6px 0;
+  font-size: 1.05em;
+  color: #cbd5e1;
+  font-weight: 800;
+}
+
+.impl-pill p{
+  margin: 0;
+  color:#c4c4c9;
+}
+
+.impl-bullets{
+  margin-top: 8px;
+  padding-left: 18px;
+}
+
+.impl-bullets li{
+  margin: 6px 0;
+  color:#c4c4c9;
+}
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-badge">OS</div>
+        <div>
+          <div class="brand-title">Producer–Consumer Synchronization</div>
+          <div class="brand-sub">Windows threading mechanisms • interactive demos • embedded results</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="#start">Start</a>
+        <a href="#demos">Demos</a>
+        <a href="#results">Results</a>
+      </nav>
+      <button id="presenterToggle" class="btn btn-ghost" aria-pressed="false">Presenter mode</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- HERO -->
+    <section class="section" id="start">
+      <div class="container">
+        <div class="hero">
+          <h1>Interactive Report</h1>
+
+
+          <div class="hero-actions">
+            <button class="btn" id="startTour">Start guided presentation</button>
+            <button class="btn btn-ghost" id="jumpResults">Jump to results</button>
+            <button class="btn btn-ghost" id="jumpDemos">Jump to demos</button>
+          </div>
+
+          <div class="note">
+            <div class="note-title">
+            <div class="note-body">
+              <ol>
+              </ol>
+              <div class="note-foot">
+                
+            </div>
+          </div>
+
+          <div class="stats">
+            <div class="stat">
+              <div class="stat-num">3×3</div>
+              <div class="stat-label">Producers × Consumers</div>
+            </div>
+            <div class="stat">
+              <div class="stat-num">10</div>
+              <div class="stat-label">Buffer capacity</div>
+            </div>
+            <div class="stat">
+              <div class="stat-num">600K</div>
+              <div class="stat-label">Items (per run)</div>
+            </div>
+            <div class="stat">
+              <div class="stat-num">4</div>
+              <div class="stat-label">Methods compared</div>
+            </div>
+          </div>
+
+          <div class="split">
+            <div class="card">
+              <h2>What problem are we solving?</h2>
+              <p>
+                Multiple producers generate items into a shared buffer while consumers remove and process those items.
+                We must ensure correctness (no data races), avoid deadlocks, and keep performance high under contention.
+              </p>
+              <div class="bullets">
+                <div class="bullet"><span class="dot dot-red"></span>Race conditions / corrupted indices</div>
+                <div class="bullet"><span class="dot dot-amber"></span>Deadlock or starvation under load</div>
+                <div class="bullet"><span class="dot dot-green"></span>Throughput and fairness between threads</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h2>What will you see in this page?</h2>
+              <div class="bullets">
+                <div class="bullet"><span class="dot dot-blue"></span>Interactive simulations (buffer + priority inversion)</div>
+                <div class="bullet"><span class="dot dot-blue"></span>Offline charts for runtime, variability, throughput</div>
+                <div class="bullet"><span class="dot dot-blue"></span>Clear "how we implemented it" mapping to each .c file</div>
+                <div class="bullet"><span class="dot dot-blue"></span>Appendix blocks (comparisons + correctness + testing)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DEMOS -->
+    <section class="section" id="demos">
+      <div class="container">
+        <h2>Demos (buttons you can click live)</h2>
+        <p class="sublead">These are simulations for teaching/explaining the ideas.</p>
+
+        <div class="stack">
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3>Demo A — Bounded Buffer (Producer/Consumer)</h3>
+                <p class="muted">
+                  Shows full/empty blocking, FIFO behavior, and why mutual exclusion is needed for <code>in/out/count</code>.
+                </p>
+              </div>
+              <div class="controls">
+                <button class="btn" id="bufStart">Start</button>
+                <button class="btn btn-ghost" id="bufPause">Pause</button>
+                <button class="btn btn-ghost" id="bufStep">Step</button>
+                <button class="btn btn-ghost" id="bufReset">Reset</button>
+              </div>
+            </div>
+
+            <div class="demo-grid">
+              <div class="demo-panel">
+                <div class="demo-title">Buffer (10 slots)</div>
+                <div id="bufferSlots" class="buffer"></div>
+                <div class="mini-row">
+                  <div class="mini">
+                    <div class="mini-k">Produced</div>
+                    <div class="mini-v" id="bufProduced">0</div>
+                  </div>
+                  <div class="mini">
+                    <div class="mini-k">Consumed</div>
+                    <div class="mini-v" id="bufConsumed">0</div>
+                  </div>
+                  <div class="mini">
+                    <div class="mini-k">Count</div>
+                    <div class="mini-v" id="bufCount">0</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="demo-panel">
+                <div class="demo-title">Thread States</div>
+                <div class="thread-state">
+                  <div class="tag tag-pink">Producer</div>
+                  <div id="pState" class="state">ready</div>
+                </div>
+                <div class="thread-state">
+                  <div class="tag tag-blue">Consumer</div>
+                  <div id="cState" class="state">ready</div>
+                </div>
+
+                <div class="explain" id="bufExplain">
+                  Click <b>Start</b> to animate. When the buffer is <b>full</b>, producers block. When it is <b>empty</b>, consumers block.
+                </div>
+
+                <details class="details">
+                  <div class="details-body">
+                    <ol>
+                      <li>"We protect shared indices with a critical section so only one thread updates <code>in/out/count</code> at a time."</li>
+                      <li>"Semaphores or condition variables block efficiently instead of busy-waiting."</li>
+                      <li>"This demo shows the exact moment a thread blocks due to full/empty."</li>
+                    </ol>
+                  </div>
+                </details>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3>Demo B — Priority Inversion</h3>
+                <p class="muted">
+                  Click "without inheritance" vs "with inheritance" to see why priority inheritance matters.
+                </p>
+              </div>
+              <div class="controls">
+                <button class="btn" id="piNoInherit">Run without inheritance</button>
+                <button class="btn btn-ghost" id="piWithInherit">Run with inheritance</button>
+                <button class="btn btn-ghost" id="piReset">Reset</button>
+              </div>
+            </div>
+
+            <div class="pi">
+              <div class="pi-legend">
+                <div class="legend-item"><span class="lane-dot dot-red"></span>High priority (H)</div>
+                <div class="legend-item"><span class="lane-dot dot-amber"></span>Medium priority (M)</div>
+                <div class="legend-item"><span class="lane-dot dot-green"></span>Low priority (L)</div>
+                <div class="legend-item"><span class="lane-dot dot-blue"></span>Mutex owner</div>
+              </div>
+
+              <div class="pi-lanes" id="piLanes"></div>
+
+              <div class="mini-row">
+                <div class="mini">
+                  <div class="mini-k">Mutex owner</div>
+                  <div class="mini-v" id="piOwner">none</div>
+                </div>
+                <div class="mini">
+                  <div class="mini-k">H state</div>
+                  <div class="mini-v" id="piH">ready</div>
+                </div>
+                <div class="mini">
+                  <div class="mini-k">M state</div>
+                  <div class="mini-v" id="piM">ready</div>
+                </div>
+                <div class="mini">
+                  <div class="mini-k">L state</div>
+                  <div class="mini-v" id="piL">ready</div>
+                </div>
+              </div>
+
+              <div class="explain" id="piExplain">
+                In inversion: L holds the mutex, H blocks, and M keeps running → H waits "too long".
+                With inheritance: L temporarily inherits H's priority → releases mutex sooner.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RESULTS -->
+    
+<section class="section" id="sync-explained">
+  <div class="container">
+    <h2>Synchronization Techniques Explained</h2>
+    <p class="sublead">
+      Each technique solves the same producer–consumer problem but emphasizes a different tradeoff.
+      This section explains how each one works conceptually and when it should be used.
+    </p>
+
+    <div class="stack">
+      <div class="card">
+        <h3>Mutex-only (Busy-wait)</h3>
+        <p>
+          This approach uses a single mutex to protect shared state. Threads repeatedly attempt
+          to acquire the lock and check buffer conditions. While simple to reason about, this causes
+          threads to actively wait, consuming CPU cycles even when no progress is possible.
+        </p>
+        <p>
+          Best suited for very small critical sections with extremely short wait times.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>Semaphores</h3>
+        <p>
+          Semaphores use counters to represent available buffer slots and items. Threads block
+          efficiently when counters reach zero, allowing the OS to sleep threads instead of
+          wasting CPU time.
+        </p>
+        <p>
+          Ideal for bounded buffers and fixed-size resource pools.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>Condition Variables</h3>
+        <p>
+          Condition variables allow threads to wait until a condition becomes true. Threads sleep
+          instead of spinning and wake only when signaled that progress may be possible.
+        </p>
+        <p>
+          Clean logic and scalable signaling but conditions must be re-checked due to spurious wakeups.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>Unbounded Queue (Linked List)</h3>
+        <p>
+          This approach removes the full buffer condition by dynamically allocating nodes for
+          each item. Producers never block due to capacity.
+        </p>
+        <p>
+          The tradeoff is unbounded memory growth if production outpaces consumption.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="results">
+      <div class="container">
+        <h2>Results (preloaded — no benchmark run required)</h2>
+        <p class="sublead">
+          These charts load instantly from embedded demo results. If you want to replace them with your real numbers later,
+          you can import a CSV — but it is optional for the presentation.
+        </p>
+
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h3>Benchmark dataset</h3>
+              <p class="muted">
+                Source: <code>site/assets/embedded_results.csv</code> (included in the ZIP). 
+            </div>
+            <div class="controls">
+              <input type="file" id="csvInput" accept=".csv" class="file" />
+              <button class="btn btn-ghost" id="loadEmbedded">Reload embedded</button>
+            </div>
+          </div>
+
+          <div class="chart-grid-vert">
+            <div class="chart-card">
+              <div class="chart-head">
+                <h4>Total time (avg of runs)</h4>
+                <div class="chart-actions">
+                  <button class="btn btn-ghost mini-btn" data-metric="seconds">seconds</button>
+                  <button class="btn btn-ghost mini-btn" data-metric="throughput">throughput</button>
+                </div>
+              </div>
+              <canvas id="chartBar" width="1100" height="420"></canvas>
+              <div class="muted small" id="barCaption"></div>
+            </div>
+
+            <div class="chart-card">
+              <div class="chart-head">
+                <h4>Stability (min / median / max per method)</h4>
+              </div>
+              <canvas id="chartRange" width="1100" height="420"></canvas>
+              <div class="muted small">
+                Tight ranges = more stable performance. Wider ranges usually mean contention sensitivity.
+              </div>
+            </div>
+
+            <div class="chart-card">
+              <div class="chart-head">
+                <h4>
+
+            <div class="chart-card">
+              <div class="chart-head">
+
+              </div>
+              <div id="winnerCards" class="winner-stack"></div>
+            </div>
+
+            <details class="details">
+              <summary>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- GUIDED OVERLAY -->
+    <div id="tour" class="tour hidden" role="dialog" aria-modal="true" aria-label="Guided presentation">
+      <div class="tour-inner">
+        <div class="tour-title" id="tourTitle">Guided presentation</div>
+        <div class="tour-text" id="tourText">Use Next/Prev to highlight sections.</div>
+        <div class="tour-actions">
+          <button class="btn btn-ghost" id="tourPrev">Prev</button>
+          <button class="btn" id="tourNext">Next</button>
+          <button class="btn btn-ghost" id="tourClose">Close</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
